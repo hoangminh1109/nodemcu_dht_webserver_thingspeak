@@ -5,7 +5,8 @@ LED_PIN=0
 DHT_PIN=1
 
 INTERVAL_BLINKING=500
-INTERVAL_DHT=60000
+INTERVAL_DHT=5000
+INTERVAL_THINGSPEAK=60000
 
 THINGSPEAK_CHANNEL_APIWRITEKEY = "ZRDUKPYQ0QV7WWX2"
 THINGSPEAK_CHANNEL_TEMP_FIELD = "field1"
@@ -29,12 +30,21 @@ tmr.alarm(0,INTERVAL_BLINKING,tmr.ALARM_AUTO,function()
 	end
 end)
 
+print("Blinking the led at D0 every 0.5 sec")
+print("Stop blinking by tmr.stop(0)\n\r")
 
+--####################
+--# Global variables #
+--################
 
--- DHT SENSOR AT D1
 temperature = 0
 humidity = 0
 
+--####################
+--#END Global variables #
+--####################
+
+-- DHT SENSOR AT D1
 function get_sensor_Data()
     dht=require("dht")
     status,temp,humi,temp_decimial,humi_decimial = dht.read(DHT_PIN)
@@ -47,7 +57,7 @@ function get_sensor_Data()
                 temperature = "-"..temperature
             end
             print("Temperature: "..temperature.." deg C")
-            print("Humidity: "..humidity.."%")
+            print("Humidity: "..humidity.."%\n\r")
         elseif( status == dht.ERROR_CHECKSUM ) then          
             print( "DHT Checksum error" )
             temperature=-1 --TEST
@@ -63,8 +73,6 @@ end
 -- POST TO THINGSPEAK
 function postThingSpeak()
     if wifi.sta.status() == 5 then
-        -- Stop the loop
---        tmr.stop(1)
 
         con = nil
         con = net.createConnection(net.TCP, 0)
@@ -79,9 +87,6 @@ function postThingSpeak()
  
         con:on("connection", function(con, payloadout)
  
-        -- Get sensor data
-        get_sensor_Data() 
-
         -- Post data to Thingspeak
         con:send(
             "POST /update?api_key=" .. THINGSPEAK_CHANNEL_APIWRITEKEY .. 
@@ -96,19 +101,9 @@ function postThingSpeak()
 
         end)
         
-
---        con:on("sent",function(con)
---            print("Sent!")
---            con:close();
---            collectgarbage();
---        end)
- 
         con:on("disconnection", function(con, payloadout)
             print("Disconnected!\n\r\n\r\n\r")
---            con:close();
             collectgarbage();
---            print("Going to deep sleep for "..(time_between_sensor_readings/1000).." seconds")
---            node.dsleep(time_between_sensor_readings*1000) 
         end)
 
         -- Connect to Thingspeak
@@ -118,28 +113,27 @@ function postThingSpeak()
     end
 end
 
-print("Blinking the led at D0 every 0.5 sec")
-print("Reads the DHT sensor and Post to ThinkSpeak every " .. (INTERVAL_DHT/1000) .." sec")
-print("Stop blinking by tmr.stop(0); Stop DHT sensor by tmr.stop(1)")
-print("\n\r")
 
-postThingSpeak()
 
-tmr.alarm(1, INTERVAL_DHT, tmr.ALARM_AUTO, function() postThingSpeak() end)
+print("Getting DHT sensor data every" .. (INTERVAL_DHT/1000) .." sec")
+print("Stop DHT sensor by tmr.stop(1)\n\r")
+
+print("Post to ThinkSpeak every " .. (INTERVAL_THINGSPEAK/1000) .." sec")
+print("Stop posting by tmr.stop(2)\n\r")
 
 srv=net.createServer(net.TCP, 10)
-print("Server created on " .. wifi.sta.getip())
-print("\n\r\n\r")
+print("Web server created on " .. wifi.sta.getip())
+print("\n\r------------------------------------------------\n\r")
 
 srv:listen(80,function(conn)
 
     conn:on("receive",function(conn,request)
-        print(request)
+--        print(request)
         
         conn:send('HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nCache-Control: private, no-store\r\n\r\n')
         conn:send('<!DOCTYPE HTML>')
         conn:send('<html><head><meta content="text/html;charset=utf-8">')
-        conn:send('<meta http-equiv="refresh" content="20">')
+        conn:send('<meta http-equiv="refresh" content="5">')
         conn:send('<title>NodeMCU ESP8266</title></head>')
         conn:send('<body bgcolor="#ffe4c4"><h2>Temperature & Humidity monitor with DHT sensor</h2>')
         conn:send('<h3><font color="green">')
@@ -150,4 +144,7 @@ srv:listen(80,function(conn)
     end)
 end)
 
-
+get_sensor_Data()
+postThingSpeak()
+tmr.alarm(1, INTERVAL_DHT, tmr.ALARM_AUTO, function() get_sensor_Data() end)
+tmr.alarm(2, INTERVAL_THINGSPEAK, tmr.ALARM_AUTO, function() postThingSpeak() end)
