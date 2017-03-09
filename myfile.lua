@@ -3,6 +3,7 @@
 --############
 LED_PIN=0
 DHT_PIN=1
+LED2_PIN=2
 
 INTERVAL_BLINKING=500
 INTERVAL_DHT=5000
@@ -115,7 +116,7 @@ end
 
 
 
-print("Getting DHT sensor data every" .. (INTERVAL_DHT/1000) .." sec")
+print("Getting DHT sensor data every " .. (INTERVAL_DHT/1000) .." sec")
 print("Stop DHT sensor by tmr.stop(1)\n\r")
 
 print("Post to ThinkSpeak every " .. (INTERVAL_THINGSPEAK/1000) .." sec")
@@ -129,18 +130,43 @@ srv:listen(80,function(conn)
 
     conn:on("receive",function(conn,request)
 --        print(request)
+
+        local buf = "";
+        local _, _, method, path, vars = string.find(request, "([A-Z]+) (.+)?(.+) HTTP");
+        if(method == nil)then
+            _, _, method, path = string.find(request, "([A-Z]+) (.+) HTTP");
+        end
+        local _GET = {}
+        if (vars ~= nil)then
+            for k, v in string.gmatch(vars, "(%w+)=(%w+)&*") do
+                _GET[k] = v
+            end
+        end
+
+        if(_GET.pinD2 == "ON")then
+              gpio.write(LED2_PIN, gpio.HIGH);
+              print('LED at D2 turned ON!\n\r')
+        elseif(_GET.pinD2 == "OFF")then
+              gpio.write(LED2_PIN, gpio.LOW);
+              print('LED at D2 turned OFF!\n\r')
+        end        
         
         conn:send('HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nCache-Control: private, no-store\r\n\r\n')
         conn:send('<!DOCTYPE HTML>')
         conn:send('<html><head><meta content="text/html;charset=utf-8">')
-        conn:send('<meta http-equiv="refresh" content="5">')
+        conn:send('<meta http-equiv="refresh" content="5; url=http://'..wifi.sta.getip()..'/">')
         conn:send('<title>NodeMCU ESP8266</title></head>')
         conn:send('<body bgcolor="#ffe4c4"><h2>Temperature & Humidity monitor with DHT sensor</h2>')
         conn:send('<h3><font color="green">')
         conn:send('<input style="text-align: center"type="text"size=4 name="p"value="'..temperature..'"> &#8451; Temperature<br>')
         conn:send('<input style="text-align: center"type="text"size=4 name="j"value="'..humidity..'"> % Humidity<br><br>')
+        conn:send('<h2>Control over WebServer</h2>')
+        conn:send('D2 LED  <a href=\"?pinD2=ON\"><button>ON</button></a>&nbsp;<a href=\"?pinD2=OFF\"><button>OFF</button></a>')
 
-        conn:on("sent", function(conn) conn:close() end)
+        conn:on("sent", function(conn)
+            conn:close()
+            collectgarbage();
+        end)
     end)
 end)
 
