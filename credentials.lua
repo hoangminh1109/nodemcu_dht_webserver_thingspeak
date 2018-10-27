@@ -1,2 +1,2 @@
-SSID="-------"
-PASSWORD="-------"
+SSID="--ssid--"
+PASSWORD="--ssid_password--"
